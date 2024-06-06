@@ -21,19 +21,53 @@ const Appsumo = (props: any) => {
       console.log(email, code, os)
 
       try {
-        const { data, error } = await supabase
+        // Check if email exists in the users table
+        let { data: existingUser, error } = await supabase
           .from('users')
-          .insert([{ email, code, os }])
+          .select('*')
+          .eq('email', email)
+          .single()
 
         if (error) {
           throw error
         }
 
-        console.log('Data inserted:', data)
+        if (existingUser) {
+          if (existingUser.code === null) {
+            // Update code and os if email exists and code is null
+            const { data, error } = await supabase
+              .from('users')
+              .update({ code, os })
+              .eq('email', email)
+
+            if (error) {
+              throw error
+            }
+
+            console.log('User updated:', data)
+          } else {
+            console.log(
+              'Email exists with a non-null code. No update performed.'
+            )
+          }
+        } else {
+          // Insert new row if email does not exist
+          const { data, error } = await supabase
+            .from('users')
+            .insert([{ email, code, os }])
+
+          if (error) {
+            throw error
+          }
+
+          console.log('New user inserted:', data)
+        }
       } catch (error) {
-        console.error('Error inserting data:', error)
+        console.error('Error:', error)
       } finally {
-        setLoading(false)
+        // Set loading to false
+        // setLoading(false)
+        console.log('final')
       }
       //axios
       axios.post('api/verify', { email: email, phrase: code }).then((res) => {
