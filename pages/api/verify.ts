@@ -1,5 +1,14 @@
 // import database from '../../lib/firebase'
 // Get spreadsheet npm package
+import type { NextApiRequest, NextApiResponse } from 'next'
+import { supabase } from '../../lib/supabaseClient'
+
+type Data = {
+  message?: string
+  error?: string
+  user?: any
+}
+
 const { GoogleSpreadsheet } = require('google-spreadsheet')
 
 // Ensure you've updated this file with your client secret
@@ -12,6 +21,10 @@ const googleSheetID = '1bDR2wwvaL8sbKmV_qjgdAKHnRCr2baJ3qkGOLbE7eVg'
 const sheet = new GoogleSpreadsheet(googleSheetID)
 
 const codes = [
+  'TESTT-BABLU-REDDY-H',
+  'TEST2-BABLU-REDDY-H',
+  'TEST3-BABLU-REDDY-H',
+  'TEST3-BABLU-REDDY-K',
   'P9E7R-6QCQR-C164T-97R78',
   '811MD-RFSW8-26ZKM-LJ507',
   'C61JH-5LCT2-5UQQZ-UPEBL',
@@ -48,7 +61,7 @@ const codes = [
 ]
 
 // Asynchronously get the data
-async function verifyCode(code) {
+async function verifyCode(code: any) {
   let valid = false
   try {
     // Authenticate using the JSON file we set up earlier
@@ -65,7 +78,7 @@ async function verifyCode(code) {
     if (rows.length > 0) {
       // Iterate through the array of rows
       // and push the clean data from your spreadsheet
-      rows.forEach((row) => {
+      rows.forEach((row: any) => {
         if (code === row._rawData[0]) {
           valid = true
           return
@@ -80,7 +93,7 @@ async function verifyCode(code) {
   }
 }
 
-export default async (req, res) => {
+/*export default async (req, res) => {
   // let email = "achuth.hadnoor123@gmail.com";
   // let phrase = '00MTI-TGPS1-4WP7J-CTGYL';
   const { email, phrase } = req.body
@@ -96,5 +109,79 @@ export default async (req, res) => {
     })
   } catch (error) {
     return res.json({ status: 403, message: `Unknown ${error}` })
+  }
+}*/
+//Bablu -- supabase server actions here
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<Data>
+) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST'])
+    return res.status(405).end(`Method ${req.method} Not Allowed`)
+  }
+
+  const { email, code, os } = req.body
+
+  if (!codes.includes(code)) {
+    console.log('code error')
+    return res.status(400).json({ message: 'Invalid code provided' })
+  }
+
+  try {
+    // Check if email exists in the users table
+    let { data: existingUser, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single()
+
+    // if (error) {
+    //    If there's an error other than "row not found", throw it
+
+    //   throw error
+    // }
+
+    if (existingUser) {
+      if (existingUser.code === null) {
+        // Update code and os if email exists and code is null
+        const { data, error } = await supabase
+          .from('users')
+          .update({ code, os })
+          .eq('email', email)
+          .single()
+
+        if (error) {
+          throw error
+        }
+
+        console.log('User updated:', data)
+        return res.status(200).json({ message: 'User updated', user: data })
+      } else {
+        console.log('Email exists with a non-null code. No update performed.')
+        return res.status(200).json({
+          message: 'Email exists with a non-null code. No update performed.',
+          user: existingUser,
+        })
+      }
+    } else {
+      // Insert new row if email does not exist
+      const { data, error } = await supabase
+        .from('users')
+        .insert([{ email, code, os }])
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      console.log('New user inserted:', data)
+      return res.status(200).json({ message: 'New user inserted', user: data })
+    }
+  } catch (error: any) {
+    console.error('Error:', error)
+    return res.status(500).json({ error: error.message })
+  } finally {
+    console.log('Supabase final call here')
   }
 }
