@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { supabase } from './api/supabaseClient'
 import cn from 'classnames'
 import Container from '../components/Container'
 
@@ -9,6 +8,7 @@ const Appsumo = (props: any) => {
   const [code, setCode] = useState('')
   const [os, setOs] = useState('macos')
   const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
 
   useEffect(() => {
     setCode(props.code)
@@ -19,58 +19,42 @@ const Appsumo = (props: any) => {
       setLoading(true)
       //supabase
       console.log(email, code, os)
+      //supabase Axios
+      axios
+        .post('/api/verify', { email, code, os })
+        .then((res) => {
+          if (res.status === 200) {
+            const user = res.data.user
+            console.log('here' + user)
+            setMessage(res.data.message)
 
-      try {
-        // Check if email exists in the users table
-        let { data: existingUser, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', email)
-          .single()
-
-        if (error) {
-          throw error
-        }
-
-        if (existingUser) {
-          if (existingUser.code === null) {
-            // Update code and os if email exists and code is null
-            const { data, error } = await supabase
-              .from('users')
-              .update({ code, os })
-              .eq('email', email)
-
-            if (error) {
-              throw error
+            if (user) {
+              if (user.created_at === user.updated_at) {
+                setMessage('New user added')
+              } else if (user.code === code) {
+                setMessage('User code added')
+              } else {
+                setMessage('User updated')
+              }
             }
-
-            console.log('User updated:', data)
           } else {
-            console.log(
-              'Email exists with a non-null code. No update performed.'
-            )
+            setMessage(`Error: ${res.data.error}`)
           }
-        } else {
-          // Insert new row if email does not exist
-          const { data, error } = await supabase
-            .from('users')
-            .insert([{ email, code, os }])
-
-          if (error) {
-            throw error
+        })
+        .catch((error) => {
+          if (error.response) {
+            setMessage(`Error: ${error.response.data.error}`)
+          } else if (error.request) {
+            setMessage('Error: No response from server')
+          } else {
+            setMessage(`Error: ${error.message}`)
           }
-
-          console.log('New user inserted:', data)
-        }
-      } catch (error) {
-        console.error('Error:', error)
-      } finally {
-        // Set loading to false
-        // setLoading(false)
-        console.log('final')
-      }
-      //axios
-      axios.post('api/verify', { email: email, phrase: code }).then((res) => {
+        })
+        .finally(() => {
+          setLoading(false)
+        })
+      //axios phrase
+      /*axios.post('api/verify', { email: email, phrase: code }).then((res) => {
         if (res.data.status === 503) {
           alert(res.data.message)
           return
@@ -98,7 +82,7 @@ const Appsumo = (props: any) => {
           'https://github.com/achuthhadnoor/www/releases/download/0.0.1/capshot.Setup.0.0.10.exe'
         )
         setLoading(false)
-      })
+      })*/
     }
   }
   let selectOs = (os: any) => {
